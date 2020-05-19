@@ -9,7 +9,7 @@ from threading import Thread
 from Crypto.Cipher import ARC4, AES
 from pbkdf2 import PBKDF2
 from scapy.all import *
-from PyQt4 import QtCore, QtGui
+from PyQt5 import QtCore, QtGui
 
 
 conf.verb = 0
