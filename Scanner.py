@@ -1,5 +1,5 @@
 
-from PyQt5 import QtCore, QtGui
+from PyQt5 import QtCore, QtWidgets
 from threading import Thread
 
 from scapy.all import *
@@ -12,7 +12,7 @@ conf.verb = 0
 
 
 def _translate(context, text, disambig):
-    return QtGui.QApplication.translate(context, text, disambig)
+    return QtWidgets.QApplication.translate(context, text, disambig)
 
 
 class AP:
@@ -26,7 +26,7 @@ class AP:
 
     def add_DataCount(self, sta_mac):
         self.data_count += 1
-        sta = filter(lambda sta: sta.sta_mac == sta_mac, self.sta_list)
+        sta = list(filter(lambda sta: sta.sta_mac == sta_mac, self.sta_list))
         # new sta
         if not sta:
             self.sta_list.append(STA(sta_mac))
@@ -88,7 +88,7 @@ class SniffingThread(Thread):
                         return
                 elif p.ID == 48:
                     crypto.append('WPA2')
-                elif p.ID == 221 and p.info.startswith('\x00P\xf2\x01\x01\x00'):
+                elif p.ID == 221 and p.info.startswith(b'\x00P\xf2\x01\x01\x00'):
                     crypto.append('WPA')
                 p = p.payload
             if not crypto:
@@ -135,7 +135,7 @@ class Scanner:
         self.ap_list = []
 
     def ap_check(self, bssid, ssid=''):
-        ap = filter(lambda ap: ap.bssid == bssid, self.ap_list)
+        ap = list(filter(lambda ap: ap.bssid == bssid, self.ap_list))
         if not ap:
             return False
         if ssid != '' and ap[0].ssid == '':
@@ -167,7 +167,7 @@ class Scanner:
 
         for index, ap in enumerate(self.ap_list):
             if self.ui.treeWidget.topLevelItem(index) is None:
-                QtGui.QTreeWidgetItem(self.ui.treeWidget)
+                QtWidgets.QTreeWidgetItem(self.ui.treeWidget)
             self.ui.treeWidget.topLevelItem(index).setText(0, _translate("MainWindow", ap.ssid, None))
             self.ui.treeWidget.topLevelItem(index).setText(1, _translate("MainWindow", str(len(ap.sta_list)), None))
             self.ui.treeWidget.topLevelItem(index).setText(2, _translate("MainWindow", ap.channel, None))
@@ -177,7 +177,7 @@ class Scanner:
 
             for index2, sta in enumerate(ap.sta_list):
                 if self.ui.treeWidget.topLevelItem(index).child(index2) is None:
-                    QtGui.QTreeWidgetItem(self.ui.treeWidget.topLevelItem(index))
+                    QtWidgets.QTreeWidgetItem(self.ui.treeWidget.topLevelItem(index))
                 self.ui.treeWidget.topLevelItem(index).child(index2).setText(0, _translate("MainWindow",
                                                                                            "sta%d" % (index2 + 1),
                                                                                            None))

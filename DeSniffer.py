@@ -472,10 +472,10 @@ class Interface_Dialog(object):
             print('[-] Could not execute \'iwconfig\'')
             exit(-1)
 
-        response = p.communicate()[0]
+        response = p.communicate()[0].decode()
         interface_list = []
         try:
-            interface_list = map(lambda x: x[:-4].strip(' '), re.findall('([^\s].* IEEE)', response))
+            interface_list = list(map(lambda x: x[:-4].strip(' ').encode(), re.findall('([^\s].* IEEE)', response)))
         except:
             interface_list = []
         return interface_list
@@ -497,7 +497,7 @@ class WLAN:
             exit(-1)
 
         response = p.communicate()[0]
-        if response.find('Monitor') == -1:
+        if response.find(b'Monitor') == -1:
             try:
                 os.system('ifconfig %s down' % self.interface)
                 os.system('iwconfig %s mode monitor' % self.interface)
@@ -516,8 +516,8 @@ class WLAN:
     def __get_mac(self, iface):
         '''http://stackoverflow.com/questions/159137/getting-mac-address'''
         s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        info = fcntl.ioctl(s.fileno(), 0x8927, struct.pack('256s', iface[:15]))
-        self.mac = ''.join(['%02x:' % ord(char) for char in info[18:24]])[:-1]
+        info = fcntl.ioctl(s.fileno(), 0x8927, struct.pack('256s', iface[:15].encode()))
+        self.mac = ''.join(['%02x:' % char for char in info[18:24]])[:-1]
 
     def set_interface(self, interface):
         self.interface = interface

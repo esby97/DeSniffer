@@ -9,7 +9,7 @@ from threading import Thread
 from Crypto.Cipher import ARC4, AES
 from pbkdf2 import PBKDF2
 from scapy.all import *
-from PyQt5 import QtCore, QtGui
+from PyQt5 import QtCore, QtWidgets
 
 
 conf.verb = 0
@@ -18,9 +18,9 @@ logging.getLogger('scapy.runtime').setLevel(logging.ERROR)
 
 class WPASession:
     def __init__(self, sta_mac):
-        self.ANonce = ''
-        self.SNonce = ''
-        self.tk_key = ''
+        self.ANonce = b''
+        self.SNonce = b''
+        self.tk_key = b''
         self.sta_mac = sta_mac
         self.deauth_count = 0
         self.is_active = False
@@ -32,19 +32,19 @@ class WPASession:
         self.deauth_count = -10
 
     def activate(self):
-        if not self.is_active and self.ANonce != '' and self.SNonce != '':
+        if not self.is_active and self.ANonce != b'' and self.SNonce != b'':
             self.is_active = True
             return True
         return False
 
     def __PRF512(self, pmk, A, B):
-        ptk1 = hmac.new(pmk, a2b_qp(A) + B + chr(0), hashlib.sha1).digest()
-        ptk2 = hmac.new(pmk, a2b_qp(A) + B + chr(1), hashlib.sha1).digest()
-        ptk3 = hmac.new(pmk, a2b_qp(A) + B + chr(2), hashlib.sha1).digest()
-        ptk4 = hmac.new(pmk, a2b_qp(A) + B + chr(3), hashlib.sha1).digest()
+        ptk1 = hmac.new(pmk, a2b_qp(A) + B + b'\x00', hashlib.sha1).digest()
+        ptk2 = hmac.new(pmk, a2b_qp(A) + B + b'\x01', hashlib.sha1).digest()
+        ptk3 = hmac.new(pmk, a2b_qp(A) + B + b'\x02', hashlib.sha1).digest()
+        ptk4 = hmac.new(pmk, a2b_qp(A) + B + b'\x03', hashlib.sha1).digest()
         return ptk1 + ptk2 + ptk3 + ptk4[0:4]
 
-    def gernerate_ptk(self, passphrase, ssid, ap_mac):
+    def generate_ptk(self, passphrase, ssid, ap_mac):
         sta_mac = a2b_hex(self.sta_mac.replace(':', ''))
         ap_mac = a2b_hex(ap_mac.replace(':', ''))
         ANonce = self.ANonce
@@ -57,6 +57,7 @@ class WPASession:
         # KCK = ptk[0:16], KEK = ptk[16:32]
         TK = ptk[32:48]
         self.tk_key = TK
+        #print("generate_ptk", self.tk_key)
 
 
 class Decrypter:
@@ -216,7 +217,7 @@ class Decrypter:
         rc4_key[13] = self.__ubyte(PPK4)
         rc4_key[14] = self.__lbyte(PPK5)
         rc4_key[15] = self.__ubyte(PPK5)
-        rc4_key = ''.join(map(lambda x: chr(x), rc4_key))
+        rc4_key = ''.join(list(map(lambda x: chr(x), rc4_key)))
 
         enc_data = wep_pkt.wepdata[4:-8]
         rc4 = ARC4.new(rc4_key)
@@ -260,7 +261,7 @@ class SniffingThread(Thread):
         sniff(iface=self.sniffer.wlan.interface, store=0, prn=self.cb_sniff, stop_filter=self.cb_stop)
 
     def __get_session(self, sta_mac):
-        session = filter(lambda session: session.sta_mac == sta_mac, self.session_list)
+        session = list(filter(lambda session: session.sta_mac == sta_mac, self.session_list))
         if session == []:
             return False
         return session[0]
@@ -310,22 +311,22 @@ class SniffingThread(Thread):
                         except:
                             return
                         mic = eapol_raw[13 + 32 + 32:13 + 32 + 32 + 16]
-                        if mic == '\x00' * 16:
+                        if mic == b'\x00' * 16:
                             # eapol message1 (reset Nonce)
-                            session.SNonce = ''
-                            session.ANonce = ''
+                            session.SNonce = b''
+                            session.ANonce = b''
                             session.is_active = False
 
                         tmp_nonce = eapol_raw[13:13 + 32]
                         if pkt.addr1 == self.ap_mac:
-                            if session.SNonce == '' and tmp_nonce.strip('\x00') != '':
+                            if session.SNonce == b'' and tmp_nonce.strip(b'\x00') != b'':
                                 session.SNonce = tmp_nonce
                         else:
-                            if session.ANonce == '' and tmp_nonce.strip('\x00') != '':
+                            if session.ANonce == b'' and tmp_nonce.strip(b'\x00') != b'':
                                 session.ANonce = tmp_nonce
                         if session.activate():
-                            session.gernerate_ptk(self.sniffer.key, self.sniffer.ssid, self.ap_mac)
-                            self.sniffer.ui.textEdit_log.append('[+] gererate TK key !! (\'%s\')' % sta_mac)
+                            session.generate_ptk(self.sniffer.key, self.sniffer.ssid, self.ap_mac)
+                            self.sniffer.ui.textEdit_log.append('[+] generate TK key !! (\'%s\')' % sta_mac)
                     else:
                         # OPEN
                         if self.sniffer.enc == 0:
@@ -453,6 +454,7 @@ class Sniffer:
 
     def send_packet(self, pkt):
         try:
+            #print("send_packet", pkt)
             os.write(self.sniff_fd, str(pkt))
         except:
             pass
@@ -460,8 +462,8 @@ class Sniffer:
     def __set_sniffing_interface(self):
         try:
             self.sniff_fd = os.open('/dev/net/tun', os.O_RDWR)
-            ifs = ioctl(self.sniff_fd, self.TUNSETIFF, struct.pack('16sH', 'DeSniffer0', self.IFF_TAP | self.IFF_NO_PI))
-            ifname = ifs[:16].strip("\x00")
+            ifs = ioctl(self.sniff_fd, self.TUNSETIFF, struct.pack('16sH', b'DeSniffer0', self.IFF_TAP | self.IFF_NO_PI))
+            ifname = ifs[:16].decode().strip("\x00")
             os.system('ifconfig %s up' % ifname)
             self.ui.textEdit_log.append('[+] \'%s\' is activated ...' % ifname)
         except IOError:
